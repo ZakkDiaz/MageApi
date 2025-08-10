@@ -1,82 +1,83 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using MageUniverse.Physics;
 using System.Threading;
+using MageUniverse.Physics;
+using ParticleLib.Modern.Models._3D;
 
-namespace MageUniverse
+namespace MageUniverse;
+
+public class Universe : IUniverse
 {
-    public class Universe : IUniverse
+    private readonly List<Particle> _particles = new();
+    private readonly IPhysicsEngine _physicsEngine;
+    private readonly Timer _timer;
+    private readonly Octree _octree;
+    private const float TargetInterval = 1f / 120f; // Target 120 updates per second
+    private DateTime _lastUpdateTime;
+
+    public Universe(IPhysicsEngine physicsEngine)
     {
-        private List<Particle> _particles = new List<Particle>();
-        private IPhysicsEngine _physicsEngine;
-        private Timer _timer;
-        private const float TargetInterval = 1f / 120f; // Target 30 updates per second
-        private DateTime _lastUpdateTime;
+        _physicsEngine = physicsEngine;
+        _octree = new Octree(new AAABBB(new Point3D(0, 0, 0), new Point3D(500, 500, 500)));
+        _lastUpdateTime = DateTime.UtcNow;
+        _timer = new Timer(TimerCallback, null, TimeSpan.Zero, TimeSpan.FromSeconds(TargetInterval));
+    }
 
-        public Universe(IPhysicsEngine physicsEngine)
-        {
-            _physicsEngine = physicsEngine;
-            _lastUpdateTime = DateTime.UtcNow;
-            _timer = new Timer(TimerCallback, null, TimeSpan.Zero, TimeSpan.FromSeconds(TargetInterval));
-        }
+    public void Clear()
+    {
+        _particles.Clear();
+        _octree.Clear();
+    }
 
-        public void Clear()
-        {
-            _particles.Clear();
-        }
+    private void TimerCallback(object? state)
+    {
+        var now = DateTime.UtcNow;
+        var deltaTime = (float)(now - _lastUpdateTime).TotalSeconds;
+        _lastUpdateTime = now;
+        deltaTime /= 2;
+        TimeStep(deltaTime);
+    }
 
-        private void TimerCallback(object state)
-        {
-            var now = DateTime.UtcNow;
-            var deltaTime = (float)(now - _lastUpdateTime).TotalSeconds;
-            _lastUpdateTime = now;
-            deltaTime /= 2;
-            TimeStep(deltaTime);
-        }
+    public void AddParticle(Particle particle)
+    {
+        _particles.Add(particle);
+        particle.OctreeIndex = _octree.AddParticle(new Point3D(particle.LocationX, particle.LocationY, particle.LocationZ));
+    }
 
-        public void AddParticle(Particle particle)
+    public void AddParticles(IEnumerable<Particle> newParticles)
+    {
+        foreach (var particle in newParticles)
         {
-            _particles.Add(particle);
-        }
-
-        public void AddParticles(IEnumerable<Particle> newParticles)
-        {
-            _particles.AddRange(newParticles);
-        }
-
-        public List<Particle> GetCurrentState()
-        {
-            return new List<Particle>(_particles);
-        }
-
-        public void TimeStep(float deltaTime)
-        {
-            _physicsEngine.TimeStep(_particles, deltaTime);
-            foreach(var particle in _particles)
-            {
-                if(particle.LocationX < 0)
-                {
-                    particle.LocationX = 0;
-                }
-                if(particle.LocationY < 0)
-                {
-                    particle.LocationY = 0;
-                }
-                if(particle.LocationX > 500)
-                {
-                    particle.LocationX = 500;
-                }
-                if(particle.LocationY > 500)
-                {
-                    particle.LocationY = 500;
-                }
-            }
-        }
-
-        // Method to stop the timer if needed
-        public void Stop()
-        {
-            _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            AddParticle(particle);
         }
     }
+
+    public List<Particle> GetCurrentState()
+    {
+        return new List<Particle>(_particles);
+    }
+
+    public void TimeStep(float deltaTime)
+    {
+        _physicsEngine.TimeStep(_particles, _octree, deltaTime);
+
+        foreach (var particle in _particles)
+        {
+            if (particle.LocationX < 0) particle.LocationX = 0;
+            if (particle.LocationY < 0) particle.LocationY = 0;
+            if (particle.LocationX > 500) particle.LocationX = 500;
+            if (particle.LocationY > 500) particle.LocationY = 500;
+
+            _octree.UpdateParticle(particle.OctreeIndex, new Point3D(particle.LocationX, particle.LocationY, particle.LocationZ));
+        }
+
+        _octree.ProcessParticleReflow();
+    }
+
+    // Method to stop the timer if needed
+    public void Stop()
+    {
+        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+    }
 }
+

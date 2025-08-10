@@ -16,5 +16,10 @@ namespace MageUniverse.Physics
         public float VelocityX { get; set; }
         public float VelocityY { get; set; }
         public float VelocityZ { get; set; }
+
+        /// <summary>
+        /// Index of this particle within the spatial octree.
+        /// </summary>
+        public int OctreeIndex { get; set; }
     }
 }
