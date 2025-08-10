@@ -235,7 +235,25 @@ namespace ParticleLib.Modern.Models._3D
 
         public void UpdateParticle(int id, Point3D pos)
         {
-            if (!Bounds.Contains(pos)) throw new ArgumentOutOfRangeException(nameof(pos));
+            if (!Bounds.Contains(pos))
+            {
+                var x = pos.X;
+                var y = pos.Y;
+                var z = pos.Z;
+                if (pos.X < Bounds.Min.X)
+                    x = Bounds.Min.X;
+                else if (pos.X > Bounds.Max.X)
+                    x = Bounds.Max.X;
+                if (pos.Y < Bounds.Min.Y)
+                    y = Bounds.Min.Y;
+                else if (pos.Y > Bounds.Max.Y)
+                    y = Bounds.Max.Y;
+                if (pos.Z < Bounds.Min.Z)
+                    z = Bounds.Min.Z;
+                else if (pos.Z > Bounds.Max.Z)
+                    z = Bounds.Max.Z;
+                pos = new Point3D(x, y, z);
+            }
 
             // Check if the *current* leaf still contains the new position.
             // If so, we only update coordinates—no reflow needed.
