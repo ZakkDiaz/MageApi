@@ -23,7 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ParticleLib.Modern\ParticleLib.Modern.csproj" />
-    <ProjectReference Include="..\ParticleLib\ParticleLib.csproj" />
   </ItemGroup>
 
 </Project>

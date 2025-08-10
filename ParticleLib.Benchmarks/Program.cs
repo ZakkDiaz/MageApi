@@ -19,7 +19,7 @@ namespace ParticleLib.Benchmarks
     {
         // -------- fixed sweep axes --------
         private static readonly int[] ParticleSizes =
-            { 10_000, 20_000, 40_000, 80_000, 160_000 };
+            { 10_000, 20_000, 40_000, 80_000, 160_000, 320_000 };
 
         private static (string Label, int LeafCap, int Depth)[] BuildConfigs()
         {
