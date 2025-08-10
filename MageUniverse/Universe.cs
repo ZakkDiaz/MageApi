@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Threading;
 using MageUniverse.Physics;
 using ParticleLib.Modern.Models._3D;
@@ -63,6 +64,8 @@ public class Universe : IUniverse
 
     public void TimeStep(float deltaTime)
     {
+        HandleCollisions();
+        _octree.ProcessParticleReflow();
         _octree.RecalculateMasses(id => _particles[id].Mass);
 
         for (int i = 0; i < _particles.Count; i++)
@@ -97,6 +100,51 @@ public class Universe : IUniverse
         }
 
         _octree.ProcessParticleReflow();
+    }
+
+    private void HandleCollisions()
+    {
+        _octree.ForEachLeaf(indices =>
+        {
+            for (int i = 0; i < indices.Count; i++)
+            {
+                var a = _particles[indices[i]];
+                for (int j = i + 1; j < indices.Count; j++)
+                {
+                    var b = _particles[indices[j]];
+                    float minDist = a.Radius + b.Radius;
+                    var posA = new Vector3(a.LocationX, a.LocationY, a.LocationZ);
+                    var posB = new Vector3(b.LocationX, b.LocationY, b.LocationZ);
+                    var delta = posB - posA;
+                    float dist = delta.Length();
+                    if (dist < minDist)
+                    {
+                        var normal = dist > 1e-5f ? delta / dist : Vector3.UnitX;
+                        float penetration = minDist - dist;
+                        float totalMass = a.Mass + b.Mass;
+                        posA -= normal * (penetration * (b.Mass / totalMass));
+                        posB += normal * (penetration * (a.Mass / totalMass));
+
+                        var velA = new Vector3(a.VelocityX, a.VelocityY, a.VelocityZ);
+                        var velB = new Vector3(b.VelocityX, b.VelocityY, b.VelocityZ);
+                        float relVel = Vector3.Dot(velA - velB, normal);
+                        if (relVel < 0)
+                        {
+                            float impulse = (2 * relVel) / totalMass;
+                            velA -= impulse * b.Mass * normal;
+                            velB += impulse * a.Mass * normal;
+                            a.VelocityX = velA.X; a.VelocityY = velA.Y; a.VelocityZ = velA.Z;
+                            b.VelocityX = velB.X; b.VelocityY = velB.Y; b.VelocityZ = velB.Z;
+                        }
+
+                        a.LocationX = posA.X; a.LocationY = posA.Y; a.LocationZ = posA.Z;
+                        b.LocationX = posB.X; b.LocationY = posB.Y; b.LocationZ = posB.Z;
+                        _octree.UpdateParticle(a.OctreeIndex, new Point3D(posA.X, posA.Y, posA.Z));
+                        _octree.UpdateParticle(b.OctreeIndex, new Point3D(posB.X, posB.Y, posB.Z));
+                    }
+                }
+            }
+        });
     }
 
     // Method to stop the timer if needed

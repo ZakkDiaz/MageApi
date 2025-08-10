@@ -21,5 +21,10 @@ namespace MageUniverse.Physics
         /// Index of this particle within the spatial octree.
         /// </summary>
         public int OctreeIndex { get; set; }
+
+        /// <summary>
+        /// Collision radius derived from mass.
+        /// </summary>
+        public float Radius => MathF.Cbrt(Mass);
     }
 }
