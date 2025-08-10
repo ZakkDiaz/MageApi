@@ -531,8 +531,9 @@ namespace ParticleLib.Modern.Models._3D
                 }
                 else
                 {
+                    if (dist < 1e-9f) return Vector3.Zero;
                     if (dist < minDistance) dist = minDistance;
-                    return Vector3.Normalize(dir) * (G * e.Mass / (dist * dist));
+                    return dir * (G * e.Mass / (dist * dist * dist));
                 }
             }
             else
