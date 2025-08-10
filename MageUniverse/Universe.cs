@@ -83,6 +83,10 @@ public class Universe : IUniverse
             particle.VelocityX += acc.X * deltaTime;
             particle.VelocityY += acc.Y * deltaTime;
             particle.VelocityZ += acc.Z * deltaTime;
+
+            if (!float.IsFinite(particle.VelocityX)) particle.VelocityX = 0f;
+            if (!float.IsFinite(particle.VelocityY)) particle.VelocityY = 0f;
+            if (!float.IsFinite(particle.VelocityZ)) particle.VelocityZ = 0f;
         }
 
         var bounds = _octree.Bounds;
@@ -92,11 +96,15 @@ public class Universe : IUniverse
             particle.LocationY += particle.VelocityY * deltaTime;
             particle.LocationZ += particle.VelocityZ * deltaTime;
 
-            particle.LocationX = Math.Clamp(particle.LocationX, bounds.Min.X, bounds.Max.X);
-            particle.LocationY = Math.Clamp(particle.LocationY, bounds.Min.Y, bounds.Max.Y);
-            particle.LocationZ = Math.Clamp(particle.LocationZ, bounds.Min.Z, bounds.Max.Z);
+            float x = float.IsFinite(particle.LocationX) ? Math.Clamp(particle.LocationX, bounds.Min.X, bounds.Max.X) : bounds.Center.X;
+            float y = float.IsFinite(particle.LocationY) ? Math.Clamp(particle.LocationY, bounds.Min.Y, bounds.Max.Y) : bounds.Center.Y;
+            float z = float.IsFinite(particle.LocationZ) ? Math.Clamp(particle.LocationZ, bounds.Min.Z, bounds.Max.Z) : bounds.Center.Z;
 
-            _octree.UpdateParticle(particle.OctreeIndex, new Point3D(particle.LocationX, particle.LocationY, particle.LocationZ));
+            particle.LocationX = x;
+            particle.LocationY = y;
+            particle.LocationZ = z;
+
+            _octree.UpdateParticle(particle.OctreeIndex, new Point3D(x, y, z));
         }
 
         _octree.ProcessParticleReflow();
