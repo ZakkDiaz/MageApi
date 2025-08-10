@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Numerics;
 using Microsoft.Extensions.ObjectPool;
 
 namespace ParticleLib.Modern.Models._3D
@@ -238,7 +239,7 @@ namespace ParticleLib.Modern.Models._3D
             if (!Bounds.Contains(pos)) throw new ArgumentOutOfRangeException(nameof(pos));
 
             // Check if the *current* leaf still contains the new position.
-            // If so, we only update coordinates—no reflow needed.
+            // If so, we only update coordinates-no reflow needed.
             int leaf = _particleLeaf[id];
             bool needsReflow = true;
             if (leaf >= 0)
@@ -397,6 +398,126 @@ namespace ParticleLib.Modern.Models._3D
             finally { _treeLock.ExitReadLock(); }
         }
 
+        // Recompute mass and center of mass for all nodes
+        public void RecalculateMasses(Func<int, float> massProvider)
+        {
+            _treeLock.EnterWriteLock();
+            try
+            {
+                RecalculateMassesRecursive(0, massProvider);
+            }
+            finally { _treeLock.ExitWriteLock(); }
+        }
+
+        private (float mass, Point3D center) RecalculateMassesRecursive(int idx, Func<int, float> massProvider)
+        {
+            var e = _nodes[idx];
+            if (e.IsLeaf)
+            {
+                float total = 0f;
+                Vector3 accum = Vector3.Zero;
+                e.Lock.Enter();
+                try
+                {
+                    if (e.Leaf is { Count: > 0 })
+                    {
+                        foreach (int pid in e.Leaf)
+                        {
+                            var pos = _particles[pid].ToVector3();
+                            float m = massProvider(pid);
+                            total += m;
+                            accum += pos * m;
+                        }
+                    }
+                }
+                finally { e.Lock.Exit(); }
+
+                e.Mass = total;
+                e.CenterOfMass = total > 0 ? new Point3D(accum / total) : e.Node.BoundingBox.Center;
+                return (e.Mass, e.CenterOfMass);
+            }
+            else
+            {
+                float total = 0f;
+                Vector3 accum = Vector3.Zero;
+                for (int o = 0; o < 8; o++)
+                {
+                    int child = e.Child[o];
+                    if (child < 0) continue;
+                    var (cm, cc) = RecalculateMassesRecursive(child, massProvider);
+                    total += cm;
+                    accum += cc.ToVector3() * cm;
+                }
+                e.Mass = total;
+                e.CenterOfMass = total > 0 ? new Point3D(accum / total) : e.Node.BoundingBox.Center;
+                return (e.Mass, e.CenterOfMass);
+            }
+        }
+
+        public Vector3 ComputeAcceleration(Point3D position, int skipId, Func<int, float> massProvider, float theta, float minDistance, float farField, float gravitationalConstant = 1f)
+        {
+            Vector3 acc = ComputeAccelerationRecursive(0, position, skipId, massProvider, theta, minDistance, gravitationalConstant);
+
+            var toCenter = Bounds.Center.ToVector3() - position.ToVector3();
+            if (toCenter != Vector3.Zero)
+                acc += Vector3.Normalize(toCenter) * farField;
+
+            return acc;
+        }
+
+        private Vector3 ComputeAccelerationRecursive(int nodeIdx, Point3D position, int skipId, Func<int, float> massProvider, float theta, float minDistance, float G)
+        {
+            var e = _nodes[nodeIdx];
+            if (e.Mass <= 0f) return Vector3.Zero;
+
+            var size = e.Node.BoundingBox.Size.X;
+            var dir = e.CenterOfMass.ToVector3() - position.ToVector3();
+            float dist = dir.Length();
+
+            if (e.IsLeaf || (!e.Node.BoundingBox.Contains(position) && size / MathF.Max(dist, 1e-5f) < theta))
+            {
+                if (e.IsLeaf)
+                {
+                    Vector3 acc = Vector3.Zero;
+                    e.Lock.Enter();
+                    try
+                    {
+                        if (e.Leaf is { Count: > 0 })
+                        {
+                            foreach (int pid in e.Leaf)
+                            {
+                                if (pid == skipId) continue;
+                                var p = _particles[pid].ToVector3();
+                                var d = p - position.ToVector3();
+                                float r = d.Length();
+                                if (r < minDistance) r = minDistance;
+                                float m = massProvider(pid);
+                                acc += Vector3.Normalize(d) * (G * m / (r * r));
+                            }
+                        }
+                    }
+                    finally { e.Lock.Exit(); }
+                    return acc;
+                }
+                else
+                {
+                    if (dist < minDistance) dist = minDistance;
+                    return Vector3.Normalize(dir) * (G * e.Mass / (dist * dist));
+                }
+            }
+            else
+            {
+                Vector3 acc = Vector3.Zero;
+                for (int o = 0; o < 8; o++)
+                {
+                    int child = e.Child[o];
+                    if (child >= 0)
+                        acc += ComputeAccelerationRecursive(child, position, skipId, massProvider, theta, minDistance, G);
+                }
+                return acc;
+            }
+        }
+
         public void ProcessParticleReflow()
         {
             while (_particlesToReflow.TryDequeue(out int id))
@@ -435,6 +556,8 @@ namespace ParticleLib.Modern.Models._3D
                     }
                     for (int i = 0; i < 8; i++) e.Child[i] = -1;
                     e.Leaf = null;
+                    e.Mass = 0f;
+                    e.CenterOfMass = e.Node.BoundingBox.Center;
                 }
 
                 lock (_particleArraysLock)
@@ -447,6 +570,8 @@ namespace ParticleLib.Modern.Models._3D
 
                 _nodes.Clear();
                 _root.Leaf = _listPool.Get();
+                _root.Mass = 0f;
+                _root.CenterOfMass = _root.Node.BoundingBox.Center;
                 _nodes.Add(_root);
             }
             finally { _treeLock.ExitWriteLock(); }
@@ -695,6 +820,10 @@ namespace ParticleLib.Modern.Models._3D
             public List<int>? Leaf;          // non-null => leaf payload
             public readonly NodeSpinLock Lock = new NodeSpinLock();
 
+            // aggregated mass information for Barnes-Hut gravity
+            public float Mass;
+            public Point3D CenterOfMass;
+
             public bool IsLeaf => Leaf != null;
 
             public NodeEntry(OctreeNode node, List<int>? leaf)
@@ -703,6 +832,9 @@ namespace ParticleLib.Modern.Models._3D
                 Leaf = leaf;
                 Child = new int[8];
                 for (int i = 0; i < 8; i++) Child[i] = -1;
+
+                Mass = 0f;
+                CenterOfMass = node.BoundingBox.Center;
             }
         }
     }
