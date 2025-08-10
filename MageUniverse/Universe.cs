@@ -13,7 +13,9 @@ public class Universe : IUniverse
     private readonly Timer _timer;
     private readonly Octree _octree;
     private const float TargetInterval = 1f / 120f; // Target 120 updates per second
+    private const float MaxDeltaTime = TargetInterval * 4f; // clamp to avoid large steps
     private DateTime _lastUpdateTime;
+    private int _isUpdating; // reentrancy guard for TimerCallback
 
     // physics constants
     const float minDistance = 1f;
@@ -36,11 +38,20 @@ public class Universe : IUniverse
 
     private void TimerCallback(object? state)
     {
-        var now = DateTime.UtcNow;
-        var deltaTime = (float)(now - _lastUpdateTime).TotalSeconds;
-        _lastUpdateTime = now;
-        deltaTime /= 2;
-        TimeStep(deltaTime);
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 1)
+            return; // skip if an update is already in progress
+        try
+        {
+            var now = DateTime.UtcNow;
+            var deltaTime = (float)(now - _lastUpdateTime).TotalSeconds;
+            _lastUpdateTime = now;
+            if (deltaTime > MaxDeltaTime) deltaTime = MaxDeltaTime;
+            TimeStep(deltaTime);
+        }
+        finally
+        {
+            Volatile.Write(ref _isUpdating, 0);
+        }
     }
 
     public void AddParticle(Particle particle)
