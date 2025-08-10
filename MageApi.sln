@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MageApi", "MageApi\MageApi.csproj", "{FB95E170-CC62-41D6-A040-E270664BD3B5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MageApi", "MageApi\MageApi.csproj", "{FB95E170-CC62-41D6-A040-E270664BD3B5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MageUniverse", "MageUniverse\MageUniverse.csproj", "{D51CE3F8-BEF3-403F-8C58-6FC0A5794E8D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MageUniverse", "MageUniverse\MageUniverse.csproj", "{D51CE3F8-BEF3-403F-8C58-6FC0A5794E8D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ParticleLib.Modern", "..\TestParticle\ParticleLib.Modern\ParticleLib.Modern.csproj", "{BA72592D-61DB-4376-8249-207E96E720F5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{D51CE3F8-BEF3-403F-8C58-6FC0A5794E8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D51CE3F8-BEF3-403F-8C58-6FC0A5794E8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D51CE3F8-BEF3-403F-8C58-6FC0A5794E8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA72592D-61DB-4376-8249-207E96E720F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA72592D-61DB-4376-8249-207E96E720F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA72592D-61DB-4376-8249-207E96E720F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA72592D-61DB-4376-8249-207E96E720F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
