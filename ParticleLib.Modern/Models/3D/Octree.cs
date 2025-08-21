@@ -516,12 +516,13 @@ namespace ParticleLib.Modern.Models._3D
                             foreach (int pid in e.Leaf)
                             {
                                 if (pid == skipId) continue;
-                                var p = _particles[pid].ToVector3();
-                                var d = p - position.ToVector3();
-                                float r = d.Length();
+                                var d = _particles[pid].ToVector3() - position.ToVector3();
+                                float r2 = d.LengthSquared();
+                                if (r2 < 1e-9f) continue; // avoid NaN when particles overlap
+                                float r = MathF.Sqrt(r2);
                                 if (r < minDistance) r = minDistance;
                                 float m = massProvider(pid);
-                                acc += Vector3.Normalize(d) * (G * m / (r * r));
+                                acc += d * (G * m / (r * r * r));
                             }
                         }
                     }
@@ -530,8 +531,9 @@ namespace ParticleLib.Modern.Models._3D
                 }
                 else
                 {
+                    if (dist < 1e-9f) return Vector3.Zero;
                     if (dist < minDistance) dist = minDistance;
-                    return Vector3.Normalize(dir) * (G * e.Mass / (dist * dist));
+                    return dir * (G * e.Mass / (dist * dist * dist));
                 }
             }
             else
@@ -545,6 +547,24 @@ namespace ParticleLib.Modern.Models._3D
                 }
                 return acc;
             }
+        }
+
+        public void ForEachLeaf(Action<IReadOnlyList<int>> action)
+        {
+            _treeLock.EnterReadLock();
+            try
+            {
+                foreach (var e in _nodes)
+                {
+                    if (e.IsLeaf && e.Leaf is { Count: > 1 })
+                    {
+                        e.Lock.Enter();
+                        try { action(e.Leaf); }
+                        finally { e.Lock.Exit(); }
+                    }
+                }
+            }
+            finally { _treeLock.ExitReadLock(); }
         }
 
         public void ProcessParticleReflow()
